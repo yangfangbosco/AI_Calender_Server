@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.device import Device
 from app.models.family import Family
+from app.models.member import FamilyMember
 from app.models.user import User
 from app.schemas.auth import (
     DeviceJoinRequest,
@@ -102,22 +103,34 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
 async def quick_register(req: QuickRegisterRequest, db: AsyncSession = Depends(get_db)):
     """Register with just a username. Create or join a family."""
     fake_email = f"{req.username}-{generate_invite_code(6)}@user.local"
+    is_creator = req.invite_code is None
 
     if req.invite_code:
-        # Join existing family
         family = await get_family_by_invite_code(db, req.invite_code)
         if not family:
             raise HTTPException(status_code=404, detail="邀请码无效")
     else:
-        # Create new family
         family = Family(name=f"{req.username}的家庭", invite_code=generate_invite_code())
         db.add(family)
         await db.flush()
 
+    # Create FamilyMember
+    member = FamilyMember(
+        family_id=family.id,
+        name=req.username,
+        avatar_key="default",
+    )
+    db.add(member)
+    await db.flush()
+
+    # Create User linked to member
     user = User(
         family_id=family.id,
+        member_id=member.id,
         email=fake_email,
         password_hash="quick",
+        is_admin=is_creator,
+        username=req.username,
     )
     db.add(user)
     await db.commit()
