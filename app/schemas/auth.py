@@ -29,3 +29,7 @@ class DeviceRegisterRequest(BaseModel):
     device_type: str  # "tablet" or "phone"
     device_name: str | None = None
     push_token: str | None = None
+
+
+class DeviceJoinRequest(BaseModel):
+    invite_code: str
