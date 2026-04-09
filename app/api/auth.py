@@ -10,6 +10,7 @@ from app.schemas.auth import (
     DeviceRegisterRequest,
     JoinFamilyRequest,
     LoginRequest,
+    QuickRegisterRequest,
     RegisterRequest,
     TokenResponse,
 )
@@ -88,6 +89,38 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     from sqlalchemy import select
     result = await db.execute(select(Family).where(Family.id == user.family_id))
     family = result.scalar_one()
+
+    token = create_token(user.id, family.id)
+    return TokenResponse(
+        access_token=token,
+        family_uuid=str(family.uuid),
+        invite_code=family.invite_code,
+    )
+
+
+@router.post("/quick-register", response_model=TokenResponse)
+async def quick_register(req: QuickRegisterRequest, db: AsyncSession = Depends(get_db)):
+    """Register with just a username. Create or join a family."""
+    fake_email = f"{req.username}-{generate_invite_code(6)}@user.local"
+
+    if req.invite_code:
+        # Join existing family
+        family = await get_family_by_invite_code(db, req.invite_code)
+        if not family:
+            raise HTTPException(status_code=404, detail="邀请码无效")
+    else:
+        # Create new family
+        family = Family(name=f"{req.username}的家庭", invite_code=generate_invite_code())
+        db.add(family)
+        await db.flush()
+
+    user = User(
+        family_id=family.id,
+        email=fake_email,
+        password_hash="quick",
+    )
+    db.add(user)
+    await db.commit()
 
     token = create_token(user.id, family.id)
     return TokenResponse(

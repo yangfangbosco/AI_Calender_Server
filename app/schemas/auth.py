@@ -33,3 +33,8 @@ class DeviceRegisterRequest(BaseModel):
 
 class DeviceJoinRequest(BaseModel):
     invite_code: str
+
+
+class QuickRegisterRequest(BaseModel):
+    username: str
+    invite_code: str | None = None  # None = create family, str = join family
