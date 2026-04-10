@@ -37,4 +37,10 @@ class DeviceJoinRequest(BaseModel):
 
 class QuickRegisterRequest(BaseModel):
     username: str
+    password: str
     invite_code: str | None = None  # None = create family, str = join family
+
+
+class QuickLoginRequest(BaseModel):
+    username: str
+    password: str

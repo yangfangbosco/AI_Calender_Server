@@ -11,6 +11,7 @@ from app.schemas.auth import (
     DeviceRegisterRequest,
     JoinFamilyRequest,
     LoginRequest,
+    QuickLoginRequest,
     QuickRegisterRequest,
     RegisterRequest,
     TokenResponse,
@@ -128,12 +129,34 @@ async def quick_register(req: QuickRegisterRequest, db: AsyncSession = Depends(g
         family_id=family.id,
         member_id=member.id,
         email=fake_email,
-        password_hash="quick",
+        password_hash=hash_password(req.password),
         is_admin=is_creator,
         username=req.username,
     )
     db.add(user)
     await db.commit()
+
+    token = create_token(user.id, family.id)
+    return TokenResponse(
+        access_token=token,
+        family_uuid=str(family.uuid),
+        invite_code=family.invite_code,
+    )
+
+
+@router.post("/quick-login", response_model=TokenResponse)
+async def quick_login(req: QuickLoginRequest, db: AsyncSession = Depends(get_db)):
+    """Login with username and password."""
+    from sqlalchemy import select
+    result = await db.execute(
+        select(User).where(User.username == req.username)
+    )
+    user = result.scalar_one_or_none()
+    if not user or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+    result = await db.execute(select(Family).where(Family.id == user.family_id))
+    family = result.scalar_one()
 
     token = create_token(user.id, family.id)
     return TokenResponse(
